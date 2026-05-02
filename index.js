@@ -24,6 +24,7 @@ app.use('/api/v1/auth', require('./routes/authRoutes'));
 app.use('/api/v1/events', require('./routes/eventRoutes'));
 app.use('/api/v1/bookings', require('./routes/bookingRoutes'));
 app.use('/api/v1/admin', require('./routes/adminRoutes'));
+app.use('/api/v1/shop', require('./routes/shopRoutes'));
 
 // Basic Route
 app.get('/', (req, res) => {

@@ -1,4 +1,5 @@
 const printful = require('../lib/printfulService');
+const ShopOrder = require('../models/ShopOrder');
 
 const getProducts = async (req, res) => {
   const products = await printful.getProducts();
@@ -53,14 +54,61 @@ const getProduct = async (req, res) => {
 };
 
 const createOrder = async (req, res) => {
-  const { recipient, items, paypalOrderId } = req.body;
+  const { recipient, items, paypalOrderId, cartItems } = req.body;
 
   if (!recipient || !items || !paypalOrderId) {
     return res.status(400).json({ message: 'recipient, items, and paypalOrderId are required' });
   }
 
   const order = await printful.createOrder({ recipient, items, retail_costs: { currency: 'USD' } });
+
+  const totalAmount = (cartItems || []).reduce(
+    (sum, ci) => sum + (parseFloat(ci.price) || 0) * (ci.quantity || 1),
+    0
+  );
+
+  await ShopOrder.create({
+    customerName: recipient.name,
+    customerEmail: recipient.email,
+    phone: recipient.phone || '',
+    shippingAddress: {
+      address1: recipient.address1,
+      city: recipient.city,
+      stateCode: recipient.state_code,
+      zip: recipient.zip,
+      countryCode: recipient.country_code,
+    },
+    items: (cartItems || []).map((ci) => ({
+      productName: ci.name,
+      variantId: ci.variantId,
+      size: ci.size || '',
+      color: ci.color || '',
+      quantity: ci.quantity,
+      price: parseFloat(ci.price) || 0,
+    })),
+    totalAmount,
+    paypalOrderId,
+    printfulOrderId: String(order.id || ''),
+    status: 'pending',
+  });
+
   res.status(201).json({ success: true, data: order });
+};
+
+const getAdminOrders = async (req, res) => {
+  const orders = await ShopOrder.find().sort({ createdAt: -1 });
+  res.json({ success: true, data: orders });
+};
+
+const updateOrderStatus = async (req, res) => {
+  const { status } = req.body;
+  const order = await ShopOrder.findByIdAndUpdate(
+    req.params.id,
+    { status },
+    { new: true, runValidators: true }
+  );
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  res.json({ success: true, data: order });
 };
 
 const getOrder = async (req, res) => {
@@ -77,4 +125,4 @@ const getShippingRates = async (req, res) => {
   res.json({ success: true, data: rates });
 };
 
-module.exports = { getProducts, getProduct, createOrder, getOrder, getShippingRates };
+module.exports = { getProducts, getProduct, createOrder, getOrder, getShippingRates, getAdminOrders, updateOrderStatus };
